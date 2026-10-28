@@ -1,12 +1,11 @@
 package com.smartgn.iam.auth.domain.model;
 
 public enum Role {
-    PROPIETARIO,
-    ADMINISTRADOR,
+    USER,
     SUPERADMIN;
 
-    /** Roles that can be chosen in public sign-up. SUPERADMIN is provisioned internally. */
-    public boolean esPublico() {
+    /** Identifies the USER role for principal and delegated accounts. */
+    public boolean isPublicRole() {
         return this != SUPERADMIN;
     }
 }

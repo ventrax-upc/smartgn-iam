@@ -3,10 +3,11 @@ package com.smartgn.iam.auth.application.service;
 import com.smartgn.iam.auth.application.port.in.SignInCommand;
 import com.smartgn.iam.auth.application.port.in.SignInResult;
 import com.smartgn.iam.auth.application.port.in.SignInUseCase;
-import com.smartgn.iam.auth.application.port.out.CuentaRepository;
+import com.smartgn.iam.auth.application.port.out.AccountRepository;
 import com.smartgn.iam.auth.application.port.out.TokenProvider;
-import com.smartgn.iam.auth.domain.exception.CredencialesInvalidasException;
-import com.smartgn.iam.auth.domain.model.Cuenta;
+import com.smartgn.iam.auth.domain.exception.InvalidCredentialsException;
+import com.smartgn.iam.auth.domain.model.UserAccount;
+
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,35 +18,40 @@ import java.util.Optional;
 @Service
 public class SignInService implements SignInUseCase {
 
-    private final CuentaRepository cuentas;
+    private final AccountRepository accounts;
     private final PasswordEncoder passwordEncoder;
     private final TokenProvider tokenProvider;
     // Dummy hash so the response time is similar whether or not the email exists
-    private final String hashFicticio;
+    private final String dummyPasswordHash;
 
-    public SignInService(CuentaRepository cuentas, PasswordEncoder passwordEncoder, TokenProvider tokenProvider) {
-        this.cuentas = cuentas;
+    public SignInService(
+            AccountRepository accounts,
+            PasswordEncoder passwordEncoder,
+            TokenProvider tokenProvider) {
+        this.accounts = accounts;
         this.passwordEncoder = passwordEncoder;
         this.tokenProvider = tokenProvider;
-        this.hashFicticio = passwordEncoder.encode("dummy-password");
+        this.dummyPasswordHash = passwordEncoder.encode("dummy-password");
     }
 
     @Override
     @Transactional(readOnly = true)
     public SignInResult execute(SignInCommand command) {
-        String correo = command.email().trim().toLowerCase(Locale.ROOT);
-        Optional<Cuenta> encontrada = cuentas.findByCorreo(correo);
+        String email = command.email().trim().toLowerCase(Locale.ROOT);
+        Optional<UserAccount> foundAccount = accounts.findByEmail(email);
 
-        if (encontrada.isEmpty()) {
-            passwordEncoder.matches(command.password(), hashFicticio);
-            throw new CredencialesInvalidasException();
+        if (foundAccount.isEmpty()) {
+            passwordEncoder.matches(command.password(), dummyPasswordHash);
+            throw new InvalidCredentialsException();
         }
 
-        Cuenta cuenta = encontrada.get();
-        if (!passwordEncoder.matches(command.password(), cuenta.getPasswordHash())) {
-            throw new CredencialesInvalidasException();
+        UserAccount account = foundAccount.get();
+        if (!"ACTIVE".equals(account.getStatus())
+                || account.getPasswordHash() == null
+                || !passwordEncoder.matches(command.password(), account.getPasswordHash())) {
+            throw new InvalidCredentialsException();
         }
 
-        return new SignInResult(cuenta, tokenProvider.generarToken(cuenta));
+        return new SignInResult(account, tokenProvider.generateToken(account));
     }
 }

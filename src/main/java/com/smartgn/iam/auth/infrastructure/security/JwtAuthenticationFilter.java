@@ -1,10 +1,12 @@
 package com.smartgn.iam.auth.infrastructure.security;
 
 import com.smartgn.iam.auth.application.port.out.TokenProvider;
+
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -17,8 +19,8 @@ import java.util.List;
 
 /**
  * Authenticates the request when it carries a valid JWT. Otherwise it leaves the request
- * unauthenticated and Spring Security answers 401 on protected routes.
- * Deliberately not a @Component: it is registered only in the security filter chain.
+ * unauthenticated and Spring Security answers 401 on protected routes. Deliberately not
+ * a @Component: it is registered only in the security filter chain.
  */
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
@@ -31,16 +33,27 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
+    protected void doFilterInternal(
+            HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
         String header = request.getHeader(HttpHeaders.AUTHORIZATION);
         if (header != null && header.startsWith(PREFIX)) {
-            tokenProvider.validar(header.substring(PREFIX.length())).ifPresent(claims -> {
-                var authentication = new UsernamePasswordAuthenticationToken(
-                        claims, null, List.of(new SimpleGrantedAuthority("ROLE_" + claims.role().name())));
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(authentication);
-            });
+            tokenProvider
+                    .validate(header.substring(PREFIX.length()))
+                    .ifPresent(
+                            claims -> {
+                                var authentication =
+                                        new UsernamePasswordAuthenticationToken(
+                                                claims,
+                                                null,
+                                                List.of(
+                                                        new SimpleGrantedAuthority(
+                                                                "ROLE_" + claims.role().name())));
+                                authentication.setDetails(
+                                        new WebAuthenticationDetailsSource().buildDetails(request));
+                                SecurityContextHolder.getContext()
+                                        .setAuthentication(authentication);
+                            });
         }
         chain.doFilter(request, response);
     }
