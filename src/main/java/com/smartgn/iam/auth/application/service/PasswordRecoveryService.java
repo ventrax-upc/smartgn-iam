@@ -1,14 +1,15 @@
 package com.smartgn.iam.auth.application.service;
 
 import com.smartgn.iam.auth.application.port.in.PasswordRecoveryUseCase;
-import com.smartgn.iam.auth.application.port.out.CuentaRepository;
+import com.smartgn.iam.auth.application.port.out.AccountRepository;
+import com.smartgn.iam.auth.application.port.out.OneTimeTokenRepository;
 import com.smartgn.iam.auth.application.port.out.PasswordResetNotification;
 import com.smartgn.iam.auth.application.port.out.PasswordResetNotifier;
-import com.smartgn.iam.auth.application.port.out.RecuperacionContrasenaRepository;
 import com.smartgn.iam.auth.application.port.out.ResetTokenCodec;
-import com.smartgn.iam.auth.domain.exception.TokenRecuperacionInvalidoException;
-import com.smartgn.iam.auth.domain.model.Cuenta;
-import com.smartgn.iam.auth.domain.model.RecuperacionContrasena;
+import com.smartgn.iam.auth.domain.exception.InvalidRecoveryTokenException;
+import com.smartgn.iam.auth.domain.model.OneTimeToken;
+import com.smartgn.iam.auth.domain.model.UserAccount;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,78 +28,88 @@ public class PasswordRecoveryService implements PasswordRecoveryUseCase {
 
     private static final Logger log = LoggerFactory.getLogger(PasswordRecoveryService.class);
 
-    private final CuentaRepository cuentas;
-    private final RecuperacionContrasenaRepository recuperaciones;
+    private final AccountRepository accounts;
+    private final OneTimeTokenRepository recoveryTokens;
     private final ResetTokenCodec codec;
     private final PasswordResetNotifier notifier;
     private final PasswordEncoder passwordEncoder;
     private final Clock clock;
     private final String linkBaseUrl;
-    private final Duration vigencia;
+    private final Duration validity;
 
-    public PasswordRecoveryService(CuentaRepository cuentas,
-                                   RecuperacionContrasenaRepository recuperaciones,
-                                   ResetTokenCodec codec,
-                                   PasswordResetNotifier notifier,
-                                   PasswordEncoder passwordEncoder,
-                                   Clock clock,
-                                   @Value("${smartgn.password-reset.link-base-url}") String linkBaseUrl,
-                                   @Value("${smartgn.password-reset.expiration-minutes}") long expirationMinutes) {
-        this.cuentas = cuentas;
-        this.recuperaciones = recuperaciones;
+    public PasswordRecoveryService(
+            AccountRepository accounts,
+            OneTimeTokenRepository recoveryTokens,
+            ResetTokenCodec codec,
+            PasswordResetNotifier notifier,
+            PasswordEncoder passwordEncoder,
+            Clock clock,
+            @Value("${smartgn.password-reset.link-base-url}") String linkBaseUrl,
+            @Value("${smartgn.password-reset.expiration-minutes}") long expirationMinutes) {
+        this.accounts = accounts;
+        this.recoveryTokens = recoveryTokens;
         this.codec = codec;
         this.notifier = notifier;
         this.passwordEncoder = passwordEncoder;
         this.clock = clock;
         this.linkBaseUrl = linkBaseUrl;
-        this.vigencia = Duration.ofMinutes(expirationMinutes);
+        this.validity = Duration.ofMinutes(expirationMinutes);
     }
 
-    // Deliberately not @Transactional: the external system is notified after the token is saved
+    // Token and encrypted delivery request commit atomically.
     @Override
-    public void solicitar(String email) {
-        String correo = email.trim().toLowerCase(Locale.ROOT);
-        Optional<Cuenta> encontrada = cuentas.findByCorreo(correo);
-        if (encontrada.isEmpty()) {
+    @Transactional
+    public void requestRecovery(String rawEmail) {
+        String email = rawEmail.trim().toLowerCase(Locale.ROOT);
+        Optional<UserAccount> foundAccount = accounts.findByEmail(email);
+        if (foundAccount.isEmpty() || !"ACTIVE".equals(foundAccount.get().getStatus())) {
             return;
         }
-        Cuenta cuenta = encontrada.get();
+        UserAccount account = foundAccount.get();
 
-        Instant ahora = clock.instant();
-        Instant expiraEn = ahora.plus(vigencia);
+        Instant now = clock.instant();
+        Instant expiresAt = now.plus(validity);
 
-        recuperaciones.invalidarPendientes(cuenta.getId(), ahora);
-        String token = codec.generarToken();
-        recuperaciones.save(RecuperacionContrasena.crear(cuenta.getId(), codec.hashear(token), ahora, expiraEn));
+        recoveryTokens.invalidatePending(account.getId(), now);
+        String token = codec.generateToken();
+        recoveryTokens.save(
+                OneTimeToken.create(account.getId(), codec.hash(token), now, expiresAt));
 
-        String enlace = linkBaseUrl + "?token=" + token;
+        String link = linkBaseUrl + "?token=" + token;
         try {
-            notifier.enviar(new PasswordResetNotification(correo, token, enlace, expiraEn));
+            notifier.send(new PasswordResetNotification(email, token, link, expiresAt));
         } catch (RuntimeException e) {
             // The client response must not change if the external system fails
-            log.error("Could not notify the password recovery for account {}", cuenta.getId(), e);
+            log.warn(
+                    "Could not queue password recovery for account {}: {}",
+                    account.getId(),
+                    e.getClass().getSimpleName());
         }
     }
 
     @Override
     @Transactional
-    public void restablecer(String token, String nuevaPassword) {
-        RecuperacionContrasena recuperacion = recuperaciones.findByTokenHash(codec.hashear(token))
-                .orElseThrow(TokenRecuperacionInvalidoException::new);
+    public void resetPassword(String token, String newPassword) {
+        OneTimeToken recoveryToken =
+                recoveryTokens
+                        .findByTokenHash(codec.hash(token))
+                        .orElseThrow(InvalidRecoveryTokenException::new);
 
-        Instant ahora = clock.instant();
-        if (!recuperacion.estaVigente(ahora)) {
-            throw new TokenRecuperacionInvalidoException();
+        Instant now = clock.instant();
+        if (!recoveryToken.canConsume(OneTimeToken.Purpose.RECOVERY, now)) {
+            throw new InvalidRecoveryTokenException();
         }
 
-        Cuenta cuenta = cuentas.findById(recuperacion.getIdCuenta())
-                .orElseThrow(TokenRecuperacionInvalidoException::new);
+        UserAccount account =
+                accounts.findById(recoveryToken.getAccountId())
+                        .orElseThrow(InvalidRecoveryTokenException::new);
 
-        cuenta.cambiarPasswordHash(passwordEncoder.encode(nuevaPassword));
-        cuentas.save(cuenta);
+        if (!"ACTIVE".equals(account.getStatus())) throw new InvalidRecoveryTokenException();
+        account.changePasswordHash(passwordEncoder.encode(newPassword));
+        accounts.save(account);
 
-        recuperacion.marcarUtilizado(ahora);
-        recuperaciones.save(recuperacion);
-        recuperaciones.invalidarPendientes(cuenta.getId(), ahora);
+        recoveryToken.markUsed(now);
+        recoveryTokens.save(recoveryToken);
+        recoveryTokens.invalidatePending(account.getId(), now);
     }
 }
