@@ -1,16 +1,16 @@
 package com.smartgn.iam.profile.application.port.in;
 
-import com.smartgn.iam.profile.domain.model.Perfil;
+import com.smartgn.iam.profile.domain.model.UserProfile;
 
 import java.util.UUID;
 
 public interface ManageProfileUseCase {
 
-    Perfil create(CreateProfileCommand command);
+    UserProfile create(CreateProfileCommand command);
 
-    Perfil getById(UUID profileId, Requester requester);
+    UserProfile getById(UUID profileId, Requester requester);
 
-    Perfil getMine(UUID accountId);
+    UserProfile getMine(UUID accountId);
 
-    Perfil update(UpdateProfileCommand command);
+    UserProfile update(UpdateProfileCommand command);
 }

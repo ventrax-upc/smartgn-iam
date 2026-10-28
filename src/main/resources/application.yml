@@ -5,17 +5,9 @@ spring:
     mapper:
       accept-case-insensitive-enums: true
   datasource:
-    # On Render it must use JDBC format: jdbc:postgresql://<host>:5432/<db>
     url: ${DB_URL:jdbc:postgresql://localhost:5432/iam_db}
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:postgres}
-  jpa:
-    open-in-view: false
-    hibernate:
-      ddl-auto: validate
-    properties:
-      hibernate:
-        default_schema: iam
   flyway:
     enabled: true
     schemas: iam
@@ -44,3 +36,15 @@ smartgn:
     expiration-minutes: ${PASSWORD_RESET_EXPIRATION_MINUTES:30}
     # Frontend URL to which ?token=... is appended
     link-base-url: ${PASSWORD_RESET_LINK_BASE_URL:http://localhost:4200/reset-password}
+
+  internal:
+    token: ${INTERNAL_SERVICE_TOKEN}
+  delivery:
+    key: ${DELIVERY_ENCRYPTION_KEY}
+    url: ${NOTIFICATION_DELIVERY_URL:}
+    token: ${NOTIFICATION_SERVICE_TOKEN:}
+  installation:
+    url: ${INSTALLATION_BASE_URL:http://installation:8081}
+  billing:
+    fixture-url: ${BILLING_FIXTURE_URL:}
+    fixture-token: ${BILLING_FIXTURE_TOKEN:}

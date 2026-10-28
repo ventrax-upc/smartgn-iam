@@ -1,22 +1,5 @@
 package com.smartgn.iam.profile.application.service;
 
-import com.smartgn.iam.profile.application.port.in.CreateProfileCommand;
-import com.smartgn.iam.profile.application.port.in.Requester;
-import com.smartgn.iam.profile.application.port.in.UpdateProfileCommand;
-import com.smartgn.iam.profile.application.port.out.PerfilRepository;
-import com.smartgn.iam.profile.domain.exception.AccesoAPerfilDenegadoException;
-import com.smartgn.iam.profile.domain.exception.PerfilNoEncontradoException;
-import com.smartgn.iam.profile.domain.exception.PerfilYaExisteException;
-import com.smartgn.iam.profile.domain.model.Perfil;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.util.Optional;
-import java.util.UUID;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -26,96 +9,131 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.smartgn.iam.profile.application.port.in.CreateProfileCommand;
+import com.smartgn.iam.profile.application.port.in.Requester;
+import com.smartgn.iam.profile.application.port.in.UpdateProfileCommand;
+import com.smartgn.iam.profile.application.port.out.ProfileRepository;
+import com.smartgn.iam.profile.domain.exception.ProfileAccessDeniedException;
+import com.smartgn.iam.profile.domain.exception.ProfileAlreadyExistsException;
+import com.smartgn.iam.profile.domain.exception.ProfileNotFoundException;
+import com.smartgn.iam.profile.domain.model.UserProfile;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.Optional;
+import java.util.UUID;
+
 @ExtendWith(MockitoExtension.class)
 class ProfileServiceTest {
 
-    @Mock PerfilRepository perfiles;
+    @Mock ProfileRepository profiles;
     @InjectMocks ProfileService service;
 
-    private final UUID duenio = UUID.randomUUID();
-    private final UUID otro = UUID.randomUUID();
+    private final UUID ownerId = UUID.randomUUID();
+    private final UUID otherAccountId = UUID.randomUUID();
     private final UUID profileId = UUID.randomUUID();
-    private final Perfil perfil = Perfil.crear(duenio, "Ana", "Perez", "987654321", "Av. Lima 123");
+    private final UserProfile profile =
+            UserProfile.create(ownerId, "Ana", "Perez", "987654321", "123 Main Avenue");
 
     @Test
-    void creaPerfilLimpiandoEspaciosYCamposOpcionales() {
-        when(perfiles.existsByIdCuenta(duenio)).thenReturn(false);
-        when(perfiles.save(any(Perfil.class))).thenAnswer(inv -> inv.getArgument(0));
+    void createsProfileTrimmingWhitespaceAndOptionalFields() {
+        when(profiles.existsByAccountId(ownerId)).thenReturn(false);
+        when(profiles.save(any(UserProfile.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        Perfil creado = service.create(new CreateProfileCommand(duenio, "  Ana ", "Perez", "  ", null));
+        UserProfile createdProfile =
+                service.create(new CreateProfileCommand(ownerId, "  Ana ", "Perez", "  ", null));
 
-        assertEquals(duenio, creado.getIdCuenta());
-        assertEquals("Ana", creado.getNombres());
-        assertNull(creado.getTelefono());
-        assertNull(creado.getDireccion());
+        assertEquals(ownerId, createdProfile.getAccountId());
+        assertEquals("Ana", createdProfile.getFirstName());
+        assertNull(createdProfile.getPhone());
+        assertNull(createdProfile.getAddress());
     }
 
     @Test
-    void noPermiteSegundoPerfilParaLaMismaCuenta() {
-        when(perfiles.existsByIdCuenta(duenio)).thenReturn(true);
+    void rejectsSecondProfileForTheSameAccount() {
+        when(profiles.existsByAccountId(ownerId)).thenReturn(true);
 
-        assertThrows(PerfilYaExisteException.class,
-                () -> service.create(new CreateProfileCommand(duenio, "Ana", "Perez", null, null)));
-        verify(perfiles, never()).save(any());
+        assertThrows(
+                ProfileAlreadyExistsException.class,
+                () ->
+                        service.create(
+                                new CreateProfileCommand(ownerId, "Ana", "Perez", null, null)));
+        verify(profiles, never()).save(any());
     }
 
     @Test
-    void elDuenioPuedeConsultarSuPerfil() {
-        when(perfiles.findById(profileId)).thenReturn(Optional.of(perfil));
+    void ownerCanReadTheirProfile() {
+        when(profiles.findById(profileId)).thenReturn(Optional.of(profile));
 
-        assertSame(perfil, service.getById(profileId, new Requester(duenio, false)));
+        assertSame(profile, service.getById(profileId, new Requester(ownerId, false)));
     }
 
     @Test
-    void otroUsuarioNoPuedeConsultarElPerfil() {
-        when(perfiles.findById(profileId)).thenReturn(Optional.of(perfil));
+    void anotherAccountCannotReadTheProfile() {
+        when(profiles.findById(profileId)).thenReturn(Optional.of(profile));
 
-        assertThrows(AccesoAPerfilDenegadoException.class,
-                () -> service.getById(profileId, new Requester(otro, false)));
+        assertThrows(
+                ProfileAccessDeniedException.class,
+                () -> service.getById(profileId, new Requester(otherAccountId, false)));
     }
 
     @Test
-    void superAdminPuedeConsultarCualquierPerfil() {
-        when(perfiles.findById(profileId)).thenReturn(Optional.of(perfil));
+    void superadminCanReadAnyProfile() {
+        when(profiles.findById(profileId)).thenReturn(Optional.of(profile));
 
-        assertSame(perfil, service.getById(profileId, new Requester(otro, true)));
+        assertSame(profile, service.getById(profileId, new Requester(otherAccountId, true)));
     }
 
     @Test
-    void consultaDePerfilInexistenteDaNoEncontrado() {
-        when(perfiles.findById(profileId)).thenReturn(Optional.empty());
+    void missingProfileRaisesNotFound() {
+        when(profiles.findById(profileId)).thenReturn(Optional.empty());
 
-        assertThrows(PerfilNoEncontradoException.class,
-                () -> service.getById(profileId, new Requester(duenio, false)));
+        assertThrows(
+                ProfileNotFoundException.class,
+                () -> service.getById(profileId, new Requester(ownerId, false)));
     }
 
     @Test
-    void elDuenioActualizaSusDatos() {
-        when(perfiles.findById(profileId)).thenReturn(Optional.of(perfil));
-        when(perfiles.save(any(Perfil.class))).thenAnswer(inv -> inv.getArgument(0));
+    void ownerUpdatesTheirProfile() {
+        when(profiles.findById(profileId)).thenReturn(Optional.of(profile));
+        when(profiles.save(any(UserProfile.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        Perfil actualizado = service.update(
-                new UpdateProfileCommand(profileId, duenio, "Ana Maria", "Perez", null, "Calle Sol 5"));
+        UserProfile updatedProfile =
+                service.update(
+                        new UpdateProfileCommand(
+                                profileId, ownerId, "Ana Maria", "Perez", null, "5 Sun Street"));
 
-        assertEquals("Ana Maria", actualizado.getNombres());
-        assertNull(actualizado.getTelefono());
-        assertEquals("Calle Sol 5", actualizado.getDireccion());
+        assertEquals("Ana Maria", updatedProfile.getFirstName());
+        assertNull(updatedProfile.getPhone());
+        assertEquals("5 Sun Street", updatedProfile.getAddress());
     }
 
     @Test
-    void otroUsuarioNoPuedeActualizarElPerfil() {
-        when(perfiles.findById(profileId)).thenReturn(Optional.of(perfil));
+    void anotherAccountCannotUpdateTheProfile() {
+        when(profiles.findById(profileId)).thenReturn(Optional.of(profile));
 
-        assertThrows(AccesoAPerfilDenegadoException.class,
-                () -> service.update(new UpdateProfileCommand(profileId, otro, "X", "Y", null, null)));
-        verify(perfiles, never()).save(any());
+        assertThrows(
+                ProfileAccessDeniedException.class,
+                () ->
+                        service.update(
+                                new UpdateProfileCommand(
+                                        profileId, otherAccountId, "X", "Y", null, null)));
+        verify(profiles, never()).save(any());
     }
 
     @Test
-    void superAdminNoPuedeModificarPerfilesAjenos() {
-        when(perfiles.findById(profileId)).thenReturn(Optional.of(perfil));
+    void superadminCannotModifyAnotherAccountsProfile() {
+        when(profiles.findById(profileId)).thenReturn(Optional.of(profile));
 
-        assertThrows(AccesoAPerfilDenegadoException.class,
-                () -> service.update(new UpdateProfileCommand(profileId, otro, "X", "Y", null, null)));
+        assertThrows(
+                ProfileAccessDeniedException.class,
+                () ->
+                        service.update(
+                                new UpdateProfileCommand(
+                                        profileId, otherAccountId, "X", "Y", null, null)));
     }
 }

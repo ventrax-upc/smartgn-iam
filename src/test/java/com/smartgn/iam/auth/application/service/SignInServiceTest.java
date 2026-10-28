@@ -1,12 +1,18 @@
 package com.smartgn.iam.auth.application.service;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
 import com.smartgn.iam.auth.application.port.in.SignInCommand;
 import com.smartgn.iam.auth.application.port.in.SignInResult;
-import com.smartgn.iam.auth.application.port.out.CuentaRepository;
+import com.smartgn.iam.auth.application.port.out.AccountRepository;
 import com.smartgn.iam.auth.application.port.out.TokenProvider;
-import com.smartgn.iam.auth.domain.exception.CredencialesInvalidasException;
-import com.smartgn.iam.auth.domain.model.Cuenta;
+import com.smartgn.iam.auth.domain.exception.InvalidCredentialsException;
 import com.smartgn.iam.auth.domain.model.Role;
+import com.smartgn.iam.auth.domain.model.UserAccount;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -16,49 +22,47 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
-
 @ExtendWith(MockitoExtension.class)
 class SignInServiceTest {
 
-    @Mock CuentaRepository cuentas;
+    @Mock AccountRepository accounts;
     @Mock PasswordEncoder passwordEncoder;
     @Mock TokenProvider tokenProvider;
     @InjectMocks SignInService service;
 
-    private final Cuenta cuenta = Cuenta.registrar("ana@correo.com", "HASH", Role.PROPIETARIO);
+    private final UserAccount account = UserAccount.create("user@example.test", "HASH", Role.USER);
 
     @Test
-    void devuelveTokenConCredencialesValidas() {
-        when(cuentas.findByCorreo("ana@correo.com")).thenReturn(Optional.of(cuenta));
-        when(passwordEncoder.matches("Secreta123", "HASH")).thenReturn(true);
-        when(tokenProvider.generarToken(cuenta)).thenReturn("JWT");
+    void returnsTokenForValidCredentials() {
+        when(accounts.findByEmail("user@example.test")).thenReturn(Optional.of(account));
+        when(passwordEncoder.matches("Secret123", "HASH")).thenReturn(true);
+        when(tokenProvider.generateToken(account)).thenReturn("JWT");
 
-        SignInResult result = service.execute(new SignInCommand(" Ana@Correo.com ", "Secreta123"));
+        SignInResult result =
+                service.execute(new SignInCommand(" User@Example.test ", "Secret123"));
 
         assertEquals("JWT", result.token());
-        assertEquals("ana@correo.com", result.cuenta().getCorreo());
+        assertEquals("user@example.test", result.account().getEmail());
     }
 
     @Test
-    void rechazaPasswordIncorrecta() {
-        when(cuentas.findByCorreo("ana@correo.com")).thenReturn(Optional.of(cuenta));
-        when(passwordEncoder.matches("mala", "HASH")).thenReturn(false);
+    void rejectsIncorrectPassword() {
+        when(accounts.findByEmail("user@example.test")).thenReturn(Optional.of(account));
+        when(passwordEncoder.matches("wrong", "HASH")).thenReturn(false);
 
-        assertThrows(CredencialesInvalidasException.class,
-                () -> service.execute(new SignInCommand("ana@correo.com", "mala")));
+        assertThrows(
+                InvalidCredentialsException.class,
+                () -> service.execute(new SignInCommand("user@example.test", "wrong")));
         verifyNoInteractions(tokenProvider);
     }
 
     @Test
-    void rechazaCorreoInexistente() {
-        when(cuentas.findByCorreo("nadie@correo.com")).thenReturn(Optional.empty());
+    void rejectsUnknownEmail() {
+        when(accounts.findByEmail("unknown@example.test")).thenReturn(Optional.empty());
 
-        assertThrows(CredencialesInvalidasException.class,
-                () -> service.execute(new SignInCommand("nadie@correo.com", "Secreta123")));
+        assertThrows(
+                InvalidCredentialsException.class,
+                () -> service.execute(new SignInCommand("unknown@example.test", "Secret123")));
         verifyNoInteractions(tokenProvider);
     }
 }

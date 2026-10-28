@@ -4,11 +4,12 @@ import com.smartgn.iam.profile.application.port.in.CreateProfileCommand;
 import com.smartgn.iam.profile.application.port.in.ManageProfileUseCase;
 import com.smartgn.iam.profile.application.port.in.Requester;
 import com.smartgn.iam.profile.application.port.in.UpdateProfileCommand;
-import com.smartgn.iam.profile.application.port.out.PerfilRepository;
-import com.smartgn.iam.profile.domain.exception.AccesoAPerfilDenegadoException;
-import com.smartgn.iam.profile.domain.exception.PerfilNoEncontradoException;
-import com.smartgn.iam.profile.domain.exception.PerfilYaExisteException;
-import com.smartgn.iam.profile.domain.model.Perfil;
+import com.smartgn.iam.profile.application.port.out.ProfileRepository;
+import com.smartgn.iam.profile.domain.exception.ProfileAccessDeniedException;
+import com.smartgn.iam.profile.domain.exception.ProfileAlreadyExistsException;
+import com.smartgn.iam.profile.domain.exception.ProfileNotFoundException;
+import com.smartgn.iam.profile.domain.model.UserProfile;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,47 +18,54 @@ import java.util.UUID;
 @Service
 public class ProfileService implements ManageProfileUseCase {
 
-    private final PerfilRepository perfiles;
+    private final ProfileRepository profiles;
 
-    public ProfileService(PerfilRepository perfiles) {
-        this.perfiles = perfiles;
+    public ProfileService(ProfileRepository profiles) {
+        this.profiles = profiles;
     }
 
     @Override
     @Transactional
-    public Perfil create(CreateProfileCommand command) {
-        if (perfiles.existsByIdCuenta(command.accountId())) {
-            throw new PerfilYaExisteException();
+    public UserProfile create(CreateProfileCommand command) {
+        if (profiles.existsByAccountId(command.accountId())) {
+            throw new ProfileAlreadyExistsException();
         }
-        Perfil perfil = Perfil.crear(command.accountId(), command.firstName(), command.lastName(),
-                command.phone(), command.address());
-        return perfiles.save(perfil);
+        UserProfile profile =
+                UserProfile.create(
+                        command.accountId(),
+                        command.firstName(),
+                        command.lastName(),
+                        command.phone(),
+                        command.address());
+        return profiles.save(profile);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public Perfil getById(UUID profileId, Requester requester) {
-        Perfil perfil = perfiles.findById(profileId).orElseThrow(PerfilNoEncontradoException::new);
-        if (!perfil.perteneceA(requester.accountId()) && !requester.superAdmin()) {
-            throw new AccesoAPerfilDenegadoException();
+    public UserProfile getById(UUID profileId, Requester requester) {
+        UserProfile profile =
+                profiles.findById(profileId).orElseThrow(ProfileNotFoundException::new);
+        if (!profile.belongsTo(requester.accountId()) && !requester.superAdmin()) {
+            throw new ProfileAccessDeniedException();
         }
-        return perfil;
+        return profile;
     }
 
     @Override
     @Transactional(readOnly = true)
-    public Perfil getMine(UUID accountId) {
-        return perfiles.findByIdCuenta(accountId).orElseThrow(PerfilNoEncontradoException::new);
+    public UserProfile getMine(UUID accountId) {
+        return profiles.findByAccountId(accountId).orElseThrow(ProfileNotFoundException::new);
     }
 
     @Override
     @Transactional
-    public Perfil update(UpdateProfileCommand command) {
-        Perfil perfil = perfiles.findById(command.profileId()).orElseThrow(PerfilNoEncontradoException::new);
-        if (!perfil.perteneceA(command.requesterAccountId())) {
-            throw new AccesoAPerfilDenegadoException();
+    public UserProfile update(UpdateProfileCommand command) {
+        UserProfile profile =
+                profiles.findById(command.profileId()).orElseThrow(ProfileNotFoundException::new);
+        if (!profile.belongsTo(command.requesterAccountId())) {
+            throw new ProfileAccessDeniedException();
         }
-        perfil.actualizar(command.firstName(), command.lastName(), command.phone(), command.address());
-        return perfiles.save(perfil);
+        profile.update(command.firstName(), command.lastName(), command.phone(), command.address());
+        return profiles.save(profile);
     }
 }
