@@ -36,8 +36,8 @@ public class JdbcIdentityOperations implements IdentityOperations {
             Sha256ResetTokenCodec tokens,
             @Value("${smartgn.installation.url:http://installation:8081}") String installationUrl,
             @Value("${smartgn.internal.token}") String serviceToken,
-            @Value("${smartgn.billing.fixture-url:}") String billingUrl,
-            @Value("${smartgn.billing.fixture-token:}") String billingToken,
+            @Value("${smartgn.billing.base-url:${smartgn.billing.fixture-url:}}") String billingUrl,
+            @Value("${smartgn.billing.service-token:${smartgn.billing.fixture-token:}}") String billingToken,
             @Value("${smartgn.activation.link:http://localhost:4200/activate-password}")
                     String activationLink) {
         this.db = db;
@@ -444,7 +444,7 @@ public class JdbcIdentityOperations implements IdentityOperations {
             try {
                 var body =
                         billing.get()
-                                .uri("/local-contracts/entitlements/{id}", principal)
+                                .uri("/internal/v1/accounts/{id}/entitlements", principal)
                                 .header("Authorization", "Bearer " + billingToken)
                                 .retrieve()
                                 .body(Map.class);

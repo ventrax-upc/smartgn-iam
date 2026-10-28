@@ -7,8 +7,8 @@
   },
   "servers": [
     {
-      "url": "http://localhost:8080",
-      "description": "Local Docker endpoint"
+      "url": "http://localhost:18080",
+      "description": "Generated server url"
     }
   ],
   "security": [
