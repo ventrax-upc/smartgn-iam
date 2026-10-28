@@ -23,7 +23,7 @@ All `/internal/v1/**` routes require the service credential; user JWTs do not au
 - POST `/accounts/purchase-confirmations`: `{eventId,purchaseOrderId,email,firstName,lastName,confirmed}`. Only a trusted verified initial-purchase result with `confirmed=true` provisions a pending principal. Same receipt is idempotent; conflicting identities are rejected. Browser payment returns are not proof. Actual Niubiz verification remains Billing's responsibility.
 - POST `/sessions/introspect`: `{token}`. Validates current cryptography, account state, role and session version; returns account context without credentials or plan authority.
 - GET `/accounts/{id}` and `/accounts/{id}/grants`: current service-only identity context and active delegated meter/function snapshot.
-- POST `/authorizations/check`: `{accountId,meterId,function,requiresPro}` returns `{allowed}`. The trusted consuming service sets whether its operation requires Pro; unknown functions are denied. IAM rechecks principal ownership with Installation. The entitlement adapter is a labeled local Billing double until a real contract exists.
+- POST `/authorizations/check`: `{accountId,meterId,function,requiresPro}` returns `{allowed}`. The trusted consuming service sets whether its operation requires Pro; unknown functions are denied. IAM rechecks principal ownership with Installation. Entitlements are queried from Billing through its protected account entitlement contract; the Sprint 1 fixture remains an explicit development double.
 
 ## Messages and sensitive delivery
 
@@ -32,3 +32,7 @@ General domain events contain an event ID, event type, aggregate ID and correlat
 Activation/recovery delivery is a separate AES-GCM-protected queue. Only token verifiers are stored in `one_time_tokens`. Submission uses a protected internal HTTP adapter and a stable Idempotency-Key; submission success is distinct from final provider delivery. Tokens/links are never logged or sent through the general event channel. Failed submissions retain retryable state.
 
 The local adapter's `/local-contracts/notifications`, entitlement and event-sink routes belong to the development fixture. They are not published as definitive interfaces of future services. X-Correlation-ID is propagated across current HTTP calls and durable messages.
+
+## Billing service integration
+
+Configure `smartgn.billing.base-url` and `smartgn.billing.service-token` to query `GET /internal/v1/accounts/{accountId}/entitlements` on Billing. Legacy fixture configuration keys remain fallback configuration names; the queried endpoint is now owned by Billing.
