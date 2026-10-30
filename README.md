@@ -1,33 +1,51 @@
 # SmartGN IAM
 
-Java 25 / Spring Boot 3.5.6 identity service for verified-purchase provisioning, initial password activation, password recovery/change, profiles, current JWT sessions and per-meter delegated permissions. The only global roles are `USER` and `SUPERADMIN`. Principal/delegated is an account kind, not an additional role.
+Identity, password activation and recovery, current sessions, account profiles and delegated meter/function grants.
 
-## Local Docker workflow
+Java 25, Spring Boot 4.1.1, PostgreSQL, Flyway and authenticated REST contracts. Source packages use `com.ventrax.iam`. Each bounded context owns its data; integration uses HTTP and durable events.
 
-The recommended complete environment lives in the adjacent [Installation & Device Management repository](https://github.com/ventrax-upc/smartgn-installation-device-management): run `scripts/start-local.ps1` there, followed by its `scripts/smoke-local.ps1`. This starts both actual applications, independent PostgreSQL containers, real EMQX and labeled doubles for future services.
+## Run locally
 
-Run the service tests independently:
+Requirements: Docker Desktop Linux engine, PowerShell 7 and the four sibling checkouts under the same parent directory. Python standard library is used by acceptance and OpenAPI helpers. A host JDK is optional.
 
 ```powershell
+./scripts/start-local.ps1 -Integrated
 ./scripts/test.ps1
+./scripts/smoke-local.ps1
 ```
 
-The script creates a disposable PostgreSQL 18 container, runs Maven `clean verify` with JDK 25 inside Docker and stops only its own generated container. No host JDK is used. `-SkipDatabase` is a development shortcut and is not full acceptance.
+The shared integrated composition uses `../smartgn-payments-billing/.env` as its local configuration authority. Preparation preserves existing secrets and application volumes. All service databases are independent. Never delete volumes to bypass a migration or authentication error.
 
-For standalone operation, copy `.env.example` to ignored `.env`, supply independent strong database/JWT/service secrets and a Base64 32-byte delivery encryption key, then run `docker compose up -d --build`. Standalone mode does not invent a Notifications service: requests stay encrypted and pending until a secure delivery adapter URL is configured. The optional `local-bootstrap` profile additionally requires `BOOTSTRAP_SUPERADMIN_EMAIL` and a strong `BOOTSTRAP_SUPERADMIN_PASSWORD`; it neither promotes an existing USER nor resets an existing password.
+| Service | Integrated address |
+| --- | --- |
+| IAM | http://localhost:18080/swagger-ui.html |
+| Installation | http://localhost:18081/swagger-ui.html |
+| Payments | http://localhost:28083/swagger-ui.html |
+| Support | http://localhost:8082/swagger-ui.html |
 
-OpenAPI is at `http://localhost:8080/swagger-ui.html`. [API contracts](docs/contracts.md) and [architecture and ownership](docs/architecture.md) describe the service behavior. The exported specification is [openapi.json](docs/openapi.json).
+`./scripts/start-local.ps1` starts this service's standalone composition using ignored `.env`; configure shared service credentials and external URLs before connecting separately started services. Its default HTTP port is 8080. `-SkipBuild` reuses application images. `/actuator/health` reports application/database health. External dependency failure is not a successful business operation.
 
-## Security and boundaries
+## Repository layout
 
-- There is no public sign-up or user-selected role. A trusted service provisions a pending principal only after a verified initial purchase.
-- Activation and recovery tokens have separate purposes, expiry and atomic single-use consumption. Only verifiers are stored with token records.
-- Password hashes live in `password_credentials`; domain models have no Spring, JSON or persistence annotations. JDBC implements the repository ports.
-- JWT validation requires signature, issuer, `smartgn-api` audience, expiry, subject/account consistency, current account status and session version. Password changes and recovery invalidate previous sessions.
-- A delegated USER starts with no permissions. Current grants and principal ownership are checked per meter/function. Delegated accounts cannot administer subusers or financial capabilities.
-- Billing owns subscriptions and paid-through periods. IAM emits no authoritative plan claim and exposes no subscription API. Its entitlement adapter calls Billing through its authenticated internal account-entitlements contract; the bundled development composition supplies a labeled double.
-- Sensitive activation/recovery requests are encrypted in a dedicated delivery queue and are never published through the general domain outbox. HTTP submission is not proof of final email delivery.
+- `src/main/java/com/ventrax/iam` and mirrored tests contain the service implementation.
+- `src/main/resources/db/migration` contains immutable versioned migrations.
+- `docs` contains service architecture, contracts, local development, overview and exported OpenAPI.
+- `scripts` contains preparation, startup, isolated tests, smoke and export commands.
+- `tools` contains verification helpers, service metadata, health probe and explicit local fixtures.
+- `.mvn`, `mvnw` and `mvnw.cmd` provide the shared Maven 3.9.11 wrapper; Docker uses JDK 25.
 
-The service uses Flyway 11.20.3, Spring Boot 3.5.6 and PostgreSQL 18. [Flyway database reference](https://documentation.red-gate.com/flyway/reference/database-driver-reference/postgresql-database).
+## Verification and configuration
 
-See the [service overview](docs/service-overview.md) for a concise description of responsibilities.
+`./scripts/test.ps1` runs Maven verify with disposable PostgreSQL and authenticated MQTT fixtures. `-SkipDatabase` is a reduced check and does not prove persistence or broker integration. `./mvnw.cmd verify` requires host JDK 25 and dedicated test database settings for persistence tests. Test resources are isolated from application volumes.
+
+`./scripts/smoke-local.ps1` checks the four-service identity/ownership/ticket/visit/coverage workflow. Purchase provisioning and notification delivery use explicitly labeled local fixtures; merchant, tax and physical-device integrations retain their own readiness requirements.
+
+Use `python tools/verify-layout.py` to check package paths and the shared repository structure. Use `./scripts/export-openapi.ps1` to refresh the export from a running service; set OPENAPI_URL to an integrated address when necessary. Never commit `.env`, `.local`, credentials or generated build output.
+
+## Documentation
+
+- [Architecture](docs/architecture.md)
+- [API and integration contracts](docs/contracts.md)
+- [Local development](docs/local-development.md)
+- [Service overview](docs/service-overview.md)
+- [OpenAPI](docs/openapi.json)

@@ -1,9 +1,8 @@
-target/
-.git/
-.idea/
-*.iml
-.vscode/
+.git
+.local
+target
 .env
 .env.*
-.local/
 *.log
+.idea
+.vscode
