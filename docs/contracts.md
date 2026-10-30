@@ -23,7 +23,7 @@ All `/internal/v1/**` routes require the service credential; user JWTs do not au
 - POST `/accounts/purchase-confirmations`: `{eventId,purchaseOrderId,email,firstName,lastName,confirmed}`. Only a trusted verified initial-purchase result with `confirmed=true` provisions a pending principal. Same receipt is idempotent; conflicting identities are rejected. Browser payment returns are not proof. Actual Niubiz verification remains Billing's responsibility.
 - POST `/sessions/introspect`: `{token}`. Validates current cryptography, account state, role and session version; returns account context without credentials or plan authority.
 - GET `/accounts/{id}` and `/accounts/{id}/grants`: current service-only identity context and active delegated meter/function snapshot.
-- POST `/authorizations/check`: `{accountId,meterId,function,requiresPro}` returns `{allowed}`. The trusted consuming service sets whether its operation requires Pro; unknown functions are denied. IAM rechecks principal ownership with Installation. Entitlements are queried from Billing through its protected account entitlement contract; the Sprint 1 fixture remains an explicit development double.
+- POST `/authorizations/check`: `{accountId,meterId,function,requiresPro}` returns `{allowed}`. The trusted consuming service sets whether its operation requires Pro; unknown functions are denied. IAM rechecks principal ownership with Installation. Entitlements are queried from Billing through its protected account entitlement contract; the local fixture remains an explicit development double.
 
 ## Messages and sensitive delivery
 

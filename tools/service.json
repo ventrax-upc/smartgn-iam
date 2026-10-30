@@ -1,0 +1,5 @@
+{
+  "service": "smartgn-iam",
+  "postgres": "postgres:18",
+  "package": "com.ventrax.iam"
+}
