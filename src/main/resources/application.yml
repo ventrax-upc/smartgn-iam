@@ -1,6 +1,18 @@
 spring:
   application:
     name: smartgn-iam-service
+  config:
+    import: ${SPRING_CONFIG_IMPORT:optional:configserver:${SMARTGN_CONFIG_URL:http://config:8088}}
+  boot:
+    admin:
+      client:
+        url: ${SMARTGN_ADMIN_URL:http://admin:8089}
+        username: ${SMARTGN_ADMIN_USERNAME:smartgn}
+        password: ${SMARTGN_ADMIN_PASSWORD:}
+        instance:
+          service-url: ${ADMIN_SERVICE_URL:http://iam:8080}
+          management-url: ${ADMIN_MANAGEMENT_URL:http://iam:8080/actuator}
+          health-url: ${ADMIN_HEALTH_URL:http://iam:8080/actuator/health}
   jackson:
     mapper:
       accept-case-insensitive-enums: true
@@ -21,7 +33,10 @@ management:
   endpoints:
     web:
       exposure:
-        include: health
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
 
 springdoc:
   swagger-ui:
