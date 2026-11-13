@@ -780,6 +780,9 @@
         "responses": {
           "204": {
             "description": "Operation completed without a response body."
+          },
+          "400": {
+            "description": "Activation token or password is missing or invalid."
           }
         },
         "security": []

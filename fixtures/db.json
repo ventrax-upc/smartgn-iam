@@ -1,0 +1,30 @@
+{
+  "service": "iam",
+  "version": 1,
+  "records": [
+    {
+      "type": "account",
+      "alias": "demo-account-pro",
+      "email": "demo.pro@smartgn.local",
+      "firstName": "Andrea",
+      "lastName": "Pro",
+      "role": "USER"
+    },
+    {
+      "type": "account",
+      "alias": "demo-account-free",
+      "email": "demo.free@smartgn.local",
+      "firstName": "Fabian",
+      "lastName": "Free",
+      "role": "USER"
+    },
+    {
+      "type": "account",
+      "alias": "demo-account-other",
+      "email": "demo.other@smartgn.local",
+      "firstName": "Isabel",
+      "lastName": "Other",
+      "role": "USER"
+    }
+  ]
+}

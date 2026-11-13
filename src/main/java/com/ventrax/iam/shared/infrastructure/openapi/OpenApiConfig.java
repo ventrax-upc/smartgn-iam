@@ -165,6 +165,11 @@ public class OpenApiConfig {
                                                         operation
                                                                 .getResponses()
                                                                 .addApiResponse(status, success);
+                                                        if (path.equals("/api/v1/auth/activate-password")) {
+                                                            operation.getResponses().putIfAbsent(
+                                                                    "400", new ApiResponse().description(
+                                                                            "Activation token or password is missing or invalid."));
+                                                        }
                                                         if (!doc.security().isEmpty())
                                                             operation
                                                                     .getResponses()
