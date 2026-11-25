@@ -12,6 +12,23 @@ public interface IdentityOperations {
             long sessionVersion,
             UUID principalAccountId) {}
 
+    record MeterGrant(UUID meterId, Set<String> permissions) {}
+
+    record DelegatedAccount(
+            UUID accountId,
+            String email,
+            String role,
+            String accountKind,
+            String status,
+            long sessionVersion,
+            UUID principalAccountId,
+            List<MeterGrant> grants) {
+        public DelegatedAccount(Account account, List<MeterGrant> grants) {
+            this(account.accountId(), account.email(), account.role(), account.accountKind(),
+                    account.status(), account.sessionVersion(), account.principalAccountId(), grants);
+        }
+    }
+
     record Purchase(
             UUID eventId,
             UUID purchaseOrderId,
@@ -30,9 +47,13 @@ public interface IdentityOperations {
 
     Account context(UUID account);
 
+    void removeSubuser(UUID principal, UUID subuser);
+
+    void resendSubuserInvitation(UUID principal, UUID subuser);
+
     Account createSubuser(UUID principal, String email, String first, String last);
 
-    List<Account> subusers(UUID principal);
+    List<DelegatedAccount> subusers(UUID principal);
 
     Set<String> grants(UUID principal, UUID subuser, UUID meter);
 

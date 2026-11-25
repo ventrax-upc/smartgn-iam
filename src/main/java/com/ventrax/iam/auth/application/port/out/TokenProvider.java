@@ -8,6 +8,8 @@ public interface TokenProvider {
 
     String generateToken(UserAccount account);
 
+    Optional<String> renew(TokenClaims claims);
+
     /** Returns the claims if the token is authentic and not expired; empty in any other case. */
     Optional<TokenClaims> validate(String token);
 }

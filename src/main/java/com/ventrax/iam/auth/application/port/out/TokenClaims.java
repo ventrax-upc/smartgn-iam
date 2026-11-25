@@ -3,6 +3,7 @@ package com.ventrax.iam.auth.application.port.out;
 import com.ventrax.iam.auth.domain.model.Role;
 
 import java.util.UUID;
+import java.time.Instant;
 
 /** Authenticated user data extracted from a valid token. */
-public record TokenClaims(UUID accountId, String email, Role role) {}
+public record TokenClaims(UUID accountId, String email, Role role, long sessionVersion, Instant sessionStartedAt) {}

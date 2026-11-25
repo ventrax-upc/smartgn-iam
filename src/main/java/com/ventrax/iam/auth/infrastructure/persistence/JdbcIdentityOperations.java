@@ -196,6 +196,12 @@ public class JdbcIdentityOperations implements IdentityOperations {
                 first,
                 last,
                 first + " " + last);
+        queueActivation(id, email(email));
+        event("AccountProvisioned", id);
+        return context(id);
+    }
+
+    private void queueActivation(UUID id, String email) {
         String plain = tokens.generateToken();
         db.update(
                 "INSERT INTO iam.one_time_tokens(token_id,account_id,token_hash,purpose,expires_at)"
@@ -208,13 +214,11 @@ public class JdbcIdentityOperations implements IdentityOperations {
                         "purpose",
                         "ACTIVATION",
                         "email",
-                        email(email),
+                        email,
                         "token",
                         plain,
                         "link",
                         activationLink + "?token=" + plain));
-        event("AccountProvisioned", id);
-        return context(id);
     }
 
     @Transactional
@@ -333,13 +337,67 @@ public class JdbcIdentityOperations implements IdentityOperations {
         return context(sub.accountId());
     }
 
-    public List<Account> subusers(UUID principal) {
+    @Transactional
+    public void resendSubuserInvitation(UUID principal, UUID subuser) {
         principal(principal);
+        delegation(principal, subuser);
+        lock("activation:" + subuser);
+        db.update(
+                "UPDATE iam.one_time_tokens SET used_at=now() WHERE account_id=?"
+                        + " AND purpose='ACTIVATION' AND used_at IS NULL",
+                subuser);
+        db.queryForList(
+                "SELECT account_id FROM iam.user_accounts WHERE account_id=? FOR UPDATE", subuser);
+        Account account = context(subuser);
+        if (!"PENDING_ACTIVATION".equals(account.status()))
+            throw error(HttpStatus.CONFLICT, "The delegated account is not pending activation");
+        queueActivation(subuser, account.email());
+        audit(principal, "SUBUSER_INVITATION_RESENT", subuser);
+    }
+
+    @Transactional
+    public void removeSubuser(UUID principal, UUID subuser) {
+        UUID delegationId = delegation(principal, subuser);
+        db.update(
+                "UPDATE iam.one_time_tokens SET used_at=now() WHERE account_id=?"
+                        + " AND used_at IS NULL",
+                subuser);
+        db.update(
+                "UPDATE iam.user_accounts SET account_status='DISABLED',"
+                        + " session_version=session_version+1 WHERE account_id=?",
+                subuser);
+        db.update(
+                "UPDATE iam.meter_permission_grants SET revoked_at=now()"
+                        + " WHERE delegation_id=? AND revoked_at IS NULL",
+                delegationId);
+        db.update(
+                "UPDATE iam.delegations SET active=false,revoked_at=now() WHERE delegation_id=?",
+                delegationId);
+        event("MeterPermissionsChanged", subuser);
+        audit(principal, "SUBUSER_REMOVED", subuser);
+    }
+
+    @Transactional(readOnly = true)
+    public List<DelegatedAccount> subusers(UUID principal) {
+        principal(principal);
+        var grantsByAccount = new HashMap<UUID, Map<UUID, Set<String>>>();
+        for (var row : db.queryForList(
+                "SELECT d.delegate_account_id,g.meter_id,g.function FROM iam.delegations d"
+                        + " JOIN iam.meter_permission_grants g USING(delegation_id)"
+                        + " WHERE d.principal_account_id=? AND d.active AND g.revoked_at IS NULL",
+                principal)) {
+            grantsByAccount.computeIfAbsent((UUID) row.get("delegate_account_id"), id -> new TreeMap<>())
+                    .computeIfAbsent((UUID) row.get("meter_id"), id -> new TreeSet<>())
+                    .add(row.get("function").toString());
+        }
         return db.query(
-                "SELECT delegate_account_id FROM iam.delegations WHERE principal_account_id=? ORDER"
-                        + " BY created_at,delegation_id",
-                (s, n) -> context(s.getObject(1, UUID.class)),
-                principal);
+                "SELECT delegate_account_id FROM iam.delegations WHERE principal_account_id=?"
+                        + " AND active ORDER BY created_at,delegation_id",
+                (row, index) -> row.getObject(1, UUID.class),
+                principal).stream().map(id -> new DelegatedAccount(context(id),
+                        grantsByAccount.getOrDefault(id, Map.of()).entrySet().stream()
+                                .map(entry -> new MeterGrant(entry.getKey(), entry.getValue()))
+                                .toList())).toList();
     }
 
     @Transactional

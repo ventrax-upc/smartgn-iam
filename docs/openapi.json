@@ -33,6 +33,83 @@
     }
   ],
   "paths": {
+    "/api/v1/subusers/{subuserId}": {
+      "delete": {
+        "tags": [
+          "Delegated access"
+        ],
+        "summary": "Remove a delegated account",
+        "description": "Requires the owning principal. Disables the delegated account, invalidates pending links and sessions, and revokes meter grants.",
+        "operationId": "removeSubuser",
+        "parameters": [
+          {
+            "name": "subuserId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Delegated account removed"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Delegation is not owned by this principal"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/subusers/{subuserId}/resend-invitation": {
+      "post": {
+        "tags": [
+          "Delegated access"
+        ],
+        "summary": "Resend a pending delegated account invitation",
+        "description": "Requires the owning principal. Invalidates previous activation links and queues a new link valid for 30 minutes.",
+        "operationId": "resendInvitation",
+        "parameters": [
+          {
+            "name": "subuserId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Invitation queued"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Delegation is not owned by this principal"
+          },
+          "409": {
+            "description": "Account is not pending activation"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/subusers/{subuserId}/grants": {
       "put": {
         "tags": [
@@ -467,7 +544,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/Account"
+                    "$ref": "#/components/schemas/DelegatedAccount"
                   }
                 }
               }
@@ -589,6 +666,44 @@
           },
           "403": {
             "description": "The current account does not have the required role, ownership or meter/function permission."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/auth/renew-session": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Renew an active session",
+        "description": "Renews a valid current bearer session without credentials. Expired, revoked, or twelve-hour-old sessions require sign-in.",
+        "operationId": "renewSession",
+        "responses": {
+          "200": {
+            "description": "Session renewed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "token"
+                  ],
+                  "properties": {
+                    "token": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or revoked session"
           }
         },
         "security": [
@@ -1075,6 +1190,43 @@
         },
         "required": [
           "token"
+        ]
+      },
+      "DelegatedAccount": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Account"
+          },
+          {
+            "type": "object",
+            "required": [
+              "grants"
+            ],
+            "properties": {
+              "grants": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "meterId",
+                    "permissions"
+                  ],
+                  "properties": {
+                    "meterId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "permissions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
         ]
       },
       "Account": {

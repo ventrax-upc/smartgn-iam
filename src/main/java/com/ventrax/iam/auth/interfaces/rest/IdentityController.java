@@ -83,9 +83,25 @@ public class IdentityController {
         return identities.createSubuser(me.accountId(), r.email(), r.firstName(), r.lastName());
     }
 
+    @PostMapping("/api/v1/subusers/{subuserId}/resend-invitation")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Resend a pending delegated account invitation")
+    public void resendInvitation(
+            @AuthenticationPrincipal TokenClaims me, @PathVariable UUID subuserId) {
+        identities.resendSubuserInvitation(me.accountId(), subuserId);
+    }
+
+    @DeleteMapping("/api/v1/subusers/{subuserId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Remove a delegated account")
+    public void removeSubuser(
+            @AuthenticationPrincipal TokenClaims me, @PathVariable UUID subuserId) {
+        identities.removeSubuser(me.accountId(), subuserId);
+    }
+
     @GetMapping("/api/v1/subusers")
     @Operation(summary = "List the principal account's subusers")
-    public List<IdentityOperations.Account> subusers(@AuthenticationPrincipal TokenClaims me) {
+    public List<IdentityOperations.DelegatedAccount> subusers(@AuthenticationPrincipal TokenClaims me) {
         return identities.subusers(me.accountId());
     }
 
