@@ -3,6 +3,12 @@ package com.ventrax.iam.auth.interfaces.rest;
 import com.ventrax.iam.auth.application.port.in.PasswordRecoveryUseCase;
 import com.ventrax.iam.auth.application.port.in.SignInCommand;
 import com.ventrax.iam.auth.application.port.in.SignInUseCase;
+import com.ventrax.iam.auth.application.port.out.TokenClaims;
+import com.ventrax.iam.auth.application.port.out.TokenProvider;
+import org.springframework.http.CacheControl;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.server.ResponseStatusException;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -23,11 +29,14 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Authentication", description = "Authentication and password recovery")
 public class AuthController {
 
+    private final TokenProvider tokenProvider;
     private final SignInUseCase signInUseCase;
     private final PasswordRecoveryUseCase passwordRecoveryUseCase;
 
     public AuthController(
-            SignInUseCase signInUseCase, PasswordRecoveryUseCase passwordRecoveryUseCase) {
+            SignInUseCase signInUseCase, PasswordRecoveryUseCase passwordRecoveryUseCase,
+            TokenProvider tokenProvider) {
+        this.tokenProvider = tokenProvider;
         this.signInUseCase = signInUseCase;
         this.passwordRecoveryUseCase = passwordRecoveryUseCase;
     }
@@ -49,6 +58,16 @@ public class AuthController {
         var result =
                 signInUseCase.execute(new SignInCommand(resource.email(), resource.password()));
         return ResponseEntity.ok(AuthenticatedAccountResource.from(result));
+    }
+
+    public record RenewedSession(String token) {}
+
+    @PostMapping("/renew-session")
+    @Operation(summary = "Renew an active session")
+    public ResponseEntity<RenewedSession> renewSession(@AuthenticationPrincipal TokenClaims claims) {
+        String token = tokenProvider.renew(claims)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Session expired"));
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(new RenewedSession(token));
     }
 
     @PostMapping("/forgot-password")

@@ -11,6 +11,15 @@
   "operations": [
     {
       "method": "POST",
+      "path": "/api/v1/auth/renew-session",
+      "tag": "Authentication",
+      "summary": "Renew an active session",
+      "description": "Renews a valid current bearer session without credentials. Expired, revoked, or twelve-hour-old sessions require sign-in.",
+      "success": 200,
+      "security": "bearerAuth"
+    },
+    {
+      "method": "POST",
       "path": "/api/v1/auth/sign-in",
       "tag": "Authentication",
       "summary": "Sign in to an active account",
@@ -115,6 +124,24 @@
       "summary": "Create a delegated account",
       "description": "Requires a principal USER. Creates a pending USER account without initial meter grants or financial permissions. Authentication: current IAM JWT; roles are USER and SUPERADMIN.",
       "success": 201,
+      "security": "bearerAuth"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/subusers/{subuserId}",
+      "tag": "Delegated access",
+      "summary": "Remove a delegated account",
+      "description": "Requires the owning principal. Disables the delegated account, invalidates pending links and sessions, and revokes meter grants.",
+      "success": 204,
+      "security": "bearerAuth"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/subusers/{subuserId}/resend-invitation",
+      "tag": "Delegated access",
+      "summary": "Resend a pending delegated account invitation",
+      "description": "Requires the owning principal. Invalidates previous activation links and queues a new one valid for 30 minutes.",
+      "success": 204,
       "security": "bearerAuth"
     },
     {
