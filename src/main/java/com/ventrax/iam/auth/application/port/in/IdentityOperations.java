@@ -35,7 +35,13 @@ public interface IdentityOperations {
             String email,
             String firstName,
             String lastName,
-            boolean confirmed) {}
+            boolean confirmed,
+            String receiptPdf) {
+        public Purchase(UUID eventId, UUID purchaseOrderId, String email,
+                        String firstName, String lastName, boolean confirmed) {
+            this(eventId, purchaseOrderId, email, firstName, lastName, confirmed, null);
+        }
+    }
 
     Map<UUID, Set<String>> meterGrants(UUID account);
 

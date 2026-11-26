@@ -215,6 +215,24 @@
       "description": "Returns the current delegated meter/function snapshot. Credentials and one-time secrets are never included. Authentication: private service credential; user JWTs are not accepted. Internal routes must remain outside public gateway routing.",
       "success": 200,
       "security": "serviceAuth"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/recovery-codes",
+      "tag": "Authentication",
+      "summary": "Request a password recovery code",
+      "description": "Queues an email with a six-digit code for a registered active account. Returns only a challenge identifier.",
+      "success": 202,
+      "security": ""
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/recovery-codes/verify",
+      "tag": "Authentication",
+      "summary": "Verify a password recovery code",
+      "description": "Checks an expiring code and issues a one-time password reset token.",
+      "success": 200,
+      "security": ""
     }
   ]
 }

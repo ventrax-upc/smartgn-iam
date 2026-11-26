@@ -179,7 +179,7 @@ public class JdbcIdentityOperations implements IdentityOperations {
         db.queryForList("SELECT pg_advisory_xact_lock(hashtextextended(?,0))", key);
     }
 
-    private Account pending(String email, String first, String last, String kind) {
+    private Account pending(String email, String first, String last, String kind, String receiptPdf) {
         UUID id = UUID.randomUUID();
         db.update(
                 "INSERT INTO iam.user_accounts(account_id,email,role,account_kind,account_status)"
@@ -196,12 +196,12 @@ public class JdbcIdentityOperations implements IdentityOperations {
                 first,
                 last,
                 first + " " + last);
-        queueActivation(id, email(email));
+        queueActivation(id, email(email), receiptPdf);
         event("AccountProvisioned", id);
         return context(id);
     }
 
-    private void queueActivation(UUID id, String email) {
+    private void queueActivation(UUID id, String email, String receiptPdf) {
         String plain = tokens.generateToken();
         db.update(
                 "INSERT INTO iam.one_time_tokens(token_id,account_id,token_hash,purpose,expires_at)"
@@ -218,7 +218,8 @@ public class JdbcIdentityOperations implements IdentityOperations {
                         "token",
                         plain,
                         "link",
-                        activationLink + "?token=" + plain));
+                        activationLink + "?token=" + plain,
+                        "receiptPdf", receiptPdf == null ? "" : receiptPdf));
     }
 
     @Transactional
@@ -239,7 +240,7 @@ public class JdbcIdentityOperations implements IdentityOperations {
                         HttpStatus.CONFLICT, "Purchase confirmation conflicts with its receipt");
             return context((UUID) old.get("account_id"));
         }
-        Account a = pending(p.email(), p.firstName(), p.lastName(), "PRINCIPAL");
+        Account a = pending(p.email(), p.firstName(), p.lastName(), "PRINCIPAL", p.receiptPdf());
         db.update(
                 "INSERT INTO iam.purchase_receipts(purchase_order_id,event_id,account_id,email)"
                         + " VALUES (?,?,?,?)",
@@ -325,7 +326,7 @@ public class JdbcIdentityOperations implements IdentityOperations {
     @Transactional
     public Account createSubuser(UUID principal, String email, String first, String last) {
         principal(principal);
-        Account sub = pending(email, first, last, "DELEGATED");
+        Account sub = pending(email, first, last, "DELEGATED", null);
         db.update(
                 "INSERT INTO"
                         + " iam.delegations(delegation_id,principal_account_id,delegate_account_id)"
@@ -351,7 +352,7 @@ public class JdbcIdentityOperations implements IdentityOperations {
         Account account = context(subuser);
         if (!"PENDING_ACTIVATION".equals(account.status()))
             throw error(HttpStatus.CONFLICT, "The delegated account is not pending activation");
-        queueActivation(subuser, account.email());
+        queueActivation(subuser, account.email(), null);
         audit(principal, "SUBUSER_INVITATION_RESENT", subuser);
     }
 

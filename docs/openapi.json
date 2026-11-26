@@ -10,7 +10,7 @@
   },
   "servers": [
     {
-      "url": "http://localhost:18080",
+      "url": "http://localhost:8080",
       "description": "Generated server url"
     }
   ],
@@ -33,83 +33,6 @@
     }
   ],
   "paths": {
-    "/api/v1/subusers/{subuserId}": {
-      "delete": {
-        "tags": [
-          "Delegated access"
-        ],
-        "summary": "Remove a delegated account",
-        "description": "Requires the owning principal. Disables the delegated account, invalidates pending links and sessions, and revokes meter grants.",
-        "operationId": "removeSubuser",
-        "parameters": [
-          {
-            "name": "subuserId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Delegated account removed"
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Delegation is not owned by this principal"
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ]
-      }
-    },
-    "/api/v1/subusers/{subuserId}/resend-invitation": {
-      "post": {
-        "tags": [
-          "Delegated access"
-        ],
-        "summary": "Resend a pending delegated account invitation",
-        "description": "Requires the owning principal. Invalidates previous activation links and queues a new link valid for 30 minutes.",
-        "operationId": "resendInvitation",
-        "parameters": [
-          {
-            "name": "subuserId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Invitation queued"
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Delegation is not owned by this principal"
-          },
-          "409": {
-            "description": "Account is not pending activation"
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ]
-      }
-    },
     "/api/v1/subusers/{subuserId}/grants": {
       "put": {
         "tags": [
@@ -605,6 +528,47 @@
         ]
       }
     },
+    "/api/v1/subusers/{subuserId}/resend-invitation": {
+      "post": {
+        "tags": [
+          "Delegated access"
+        ],
+        "summary": "Resend a pending delegated account invitation",
+        "description": "Requires the owning principal. Invalidates previous activation links and queues a new one valid for 30 minutes.",
+        "operationId": "resendInvitation",
+        "parameters": [
+          {
+            "name": "subuserId",
+            "in": "path",
+            "description": "Resource UUID. Possession of an identifier does not replace authorization.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Operation completed without a response body."
+          },
+          "409": {
+            "description": "The delegated account is not pending activation."
+          },
+          "401": {
+            "description": "Missing, expired, revoked or invalid IAM session."
+          },
+          "403": {
+            "description": "The current account does not have the required role, ownership or meter/function permission."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/profiles": {
       "post": {
         "tags": [
@@ -666,44 +630,6 @@
           },
           "403": {
             "description": "The current account does not have the required role, ownership or meter/function permission."
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ]
-      }
-    },
-    "/api/v1/auth/renew-session": {
-      "post": {
-        "tags": [
-          "Authentication"
-        ],
-        "summary": "Renew an active session",
-        "description": "Renews a valid current bearer session without credentials. Expired, revoked, or twelve-hour-old sessions require sign-in.",
-        "operationId": "renewSession",
-        "responses": {
-          "200": {
-            "description": "Session renewed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "token"
-                  ],
-                  "properties": {
-                    "token": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing, expired or revoked session"
           }
         },
         "security": [
@@ -790,6 +716,168 @@
           },
           "400": {
             "description": "Invalid data, or token invalid, expired or already used"
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/v1/auth/renew-session": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Renew an active session",
+        "description": "Renews a valid current bearer session without credentials. Expired, revoked, or twelve-hour-old sessions require sign-in.",
+        "operationId": "renewSession",
+        "responses": {
+          "200": {
+            "description": "Operation completed successfully.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RenewedSession"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired, revoked or invalid IAM session."
+          },
+          "403": {
+            "description": "The current account does not have the required role, ownership or meter/function permission."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/auth/recovery-codes": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Request a password recovery code",
+        "description": "Queues an email with a six-digit code for a registered active account. Returns only a challenge identifier.",
+        "operationId": "send",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Send"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "400": {
+            "description": "Email is invalid",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Challenge"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Email is not registered",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Challenge"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Account is inactive",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Challenge"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Recovery request limit exceeded",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Challenge"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Email delivery is unavailable",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Challenge"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Request accepted; asynchronous work or delivery may still be pending.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Challenge"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/v1/auth/recovery-codes/verify": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Verify a password recovery code",
+        "description": "Checks an expiring code and issues a one-time password reset token.",
+        "operationId": "verify",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Verify"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "400": {
+            "description": "Challenge or code is invalid",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryProof"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Code is incorrect or expired",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryProof"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Operation completed successfully."
           }
         },
         "security": []
@@ -1098,6 +1186,44 @@
           }
         ]
       }
+    },
+    "/api/v1/subusers/{subuserId}": {
+      "delete": {
+        "tags": [
+          "Delegated access"
+        ],
+        "summary": "Remove a delegated account",
+        "description": "Requires the owning principal. Disables the delegated account, invalidates pending links and sessions, and revokes meter grants.",
+        "operationId": "removeSubuser",
+        "parameters": [
+          {
+            "name": "subuserId",
+            "in": "path",
+            "description": "Resource UUID. Possession of an identifier does not replace authorization.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Operation completed without a response body."
+          },
+          "401": {
+            "description": "Missing, expired, revoked or invalid IAM session."
+          },
+          "403": {
+            "description": "The current account does not have the required role, ownership or meter/function permission."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -1192,43 +1318,6 @@
           "token"
         ]
       },
-      "DelegatedAccount": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/Account"
-          },
-          {
-            "type": "object",
-            "required": [
-              "grants"
-            ],
-            "properties": {
-              "grants": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "required": [
-                    "meterId",
-                    "permissions"
-                  ],
-                  "properties": {
-                    "meterId": {
-                      "type": "string",
-                      "format": "uuid"
-                    },
-                    "permissions": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        ]
-      },
       "Account": {
         "type": "object",
         "properties": {
@@ -1312,6 +1401,11 @@
           },
           "confirmed": {
             "type": "boolean"
+          },
+          "receiptPdf": {
+            "type": "string",
+            "maxLength": 5000000,
+            "minLength": 0
           }
         },
         "required": [
@@ -1450,6 +1544,63 @@
           "token"
         ]
       },
+      "RenewedSession": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          }
+        }
+      },
+      "Send": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 254,
+            "minLength": 0
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
+      "Challenge": {
+        "type": "object",
+        "properties": {
+          "challengeId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "Verify": {
+        "type": "object",
+        "properties": {
+          "challengeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "[0-9]{6}"
+          }
+        },
+        "required": [
+          "challengeId",
+          "code"
+        ]
+      },
+      "RecoveryProof": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          }
+        }
+      },
       "ForgotPasswordResource": {
         "type": "object",
         "properties": {
@@ -1508,6 +1659,57 @@
           "activationToken",
           "newPassword"
         ]
+      },
+      "DelegatedAccount": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "accountKind": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "sessionVersion": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "principalAccountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "grants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MeterGrant"
+            }
+          }
+        }
+      },
+      "MeterGrant": {
+        "type": "object",
+        "properties": {
+          "meterId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          }
+        }
       }
     },
     "securitySchemes": {

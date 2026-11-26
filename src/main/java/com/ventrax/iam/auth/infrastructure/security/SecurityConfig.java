@@ -57,6 +57,8 @@ public class SecurityConfig {
                                         .requestMatchers(
                                                 "/api/v1/auth/sign-in",
                                                 "/api/v1/auth/forgot-password",
+                                                "/api/v1/auth/recovery-codes",
+                                                "/api/v1/auth/recovery-codes/verify",
                                                 "/api/v1/auth/reset-password",
                                                 "/api/v1/auth/activate-password",
                                                 "/actuator/health",
