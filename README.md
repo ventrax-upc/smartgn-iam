@@ -8,6 +8,8 @@ Manages account activation, sessions, profiles and delegated access. Private con
 
 ## Run locally
 
+The [integrated startup guide](https://github.com/ventrax-upc/smartgn-api-gateway/blob/develop/README.md#start-all-13-repositories-locally) covers all 13 repositories. The commands below describe this component.
+
 Requirements are Docker Desktop with the Linux engine and PowerShell 7. Keep the SmartGN repositories as siblings for the integrated stack.
 
 ```powershell
@@ -25,6 +27,16 @@ Run `./scripts/start-local.ps1 -Integrated` to start all 11 services through the
 ## Configuration
 
 Standalone settings use the variables in `.env.example`. Copy it to an ignored `.env` when the local startup script requires it. Integrated credentials and generated files are stored under `.local` in the Gateway repository.
+
+Password recovery uses a six-digit, single-use code that expires after ten
+minutes and allows up to five verification attempts. An unregistered email
+returns HTTP 404. The code is delivered asynchronously through the encrypted
+delivery queue.
+
+Integrated Compose uses `IAM_EMAIL_MODE=fixture`. In AWS set
+`IAM_EMAIL_MODE=resend`, inject `RESEND_API_KEY` as a server-side secret and
+set `RESEND_FROM_EMAIL` to a sender on a verified domain. This also routes
+IAM activation and legacy recovery emails through Resend.
 
 ## Verification
 
@@ -51,6 +63,10 @@ Run the integrated smoke from the Gateway repository to verify cross-service wor
 - [Contracts](docs/contracts.md)
 - [OpenAPI export](docs/openapi.json)
 - [Service overview](docs/service-overview.md)
+
+## Acceptance scenarios
+
+See the [Gherkin acceptance scenarios](docs/acceptance/scenarios.gherkin). These are acceptance specifications. Use the verification commands above to run the automated checks.
 
 ## License
 

@@ -47,6 +47,8 @@ smartgn:
     jwt:
       secret: ${JWT_SECRET}
       expiration-minutes: ${JWT_EXPIRATION_MINUTES:15}
+  activation:
+    link: ${ACTIVATION_LINK_BASE_URL:http://localhost:4200/activate-password}
   password-reset:
     expiration-minutes: ${PASSWORD_RESET_EXPIRATION_MINUTES:30}
     # Frontend URL to which ?token=... is appended
@@ -55,6 +57,9 @@ smartgn:
   internal:
     token: ${INTERNAL_SERVICE_TOKEN}
   delivery:
+    mode: ${IAM_EMAIL_MODE:fixture}
+    resend-key: ${RESEND_API_KEY:}
+    from: ${RESEND_FROM_EMAIL:${APP_PASSWORD_RESET_FROM_EMAIL:}}
     key: ${DELIVERY_ENCRYPTION_KEY}
     url: ${NOTIFICATION_DELIVERY_URL:}
     token: ${NOTIFICATION_SERVICE_TOKEN:}

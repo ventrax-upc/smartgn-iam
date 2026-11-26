@@ -22,6 +22,8 @@ public class SecureDeliveryQueue implements PasswordResetNotifier {
     private final ObjectMapper json;
     private final byte[] key;
     private final String url, token;
+    private final boolean resend;
+    private final String resendKey, from;
     private final RestClient http;
 
     public SecureDeliveryQueue(
@@ -29,7 +31,10 @@ public class SecureDeliveryQueue implements PasswordResetNotifier {
             ObjectMapper json,
             @Value("${smartgn.delivery.key}") String key,
             @Value("${smartgn.delivery.url:}") String url,
-            @Value("${smartgn.delivery.token:}") String token) {
+            @Value("${smartgn.delivery.token:}") String token,
+            @Value("${smartgn.delivery.mode:fixture}") String mode,
+            @Value("${smartgn.delivery.resend-key:}") String resendKey,
+            @Value("${smartgn.delivery.from:}") String from) {
         this.db = db;
         this.json = json;
         this.key = Base64.getDecoder().decode(key);
@@ -37,6 +42,9 @@ public class SecureDeliveryQueue implements PasswordResetNotifier {
             throw new IllegalArgumentException("Delivery encryption requires 32 bytes");
         this.url = url;
         this.token = token;
+        this.resend = mode.equals("resend");
+        this.resendKey = resendKey;
+        this.from = from;
         this.http =
                 RestClient.builder()
                         .requestFactory(
@@ -49,6 +57,10 @@ public class SecureDeliveryQueue implements PasswordResetNotifier {
                                     }
                                 })
                         .build();
+    }
+
+    public boolean isConfigured() {
+        return resend ? !resendKey.isBlank() && !from.isBlank() : !url.isBlank() && !token.isBlank();
     }
 
     private String protect(String text, boolean encrypt) {
@@ -113,7 +125,7 @@ public class SecureDeliveryQueue implements PasswordResetNotifier {
 
     @Scheduled(fixedDelay = 1000)
     public void deliver() {
-        if (url.isBlank()) return;
+        if (!isConfigured()) return;
         UUID claim = UUID.randomUUID();
         var jobs =
                 db.queryForList(
@@ -126,15 +138,26 @@ public class SecureDeliveryQueue implements PasswordResetNotifier {
                         claim);
         for (var job : jobs) {
             try {
-                http.post()
-                        .uri(url)
-                        .header("Authorization", "Bearer " + token)
-                        .header("Idempotency-Key", job.get("delivery_id").toString())
-                        .header("X-Correlation-ID", job.get("correlation_id").toString())
-                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
-                        .body(protect(job.get("protected_payload").toString(), false))
-                        .retrieve()
-                        .toBodilessEntity();
+                String payload = protect(job.get("protected_payload").toString(), false);
+                var message = json.readTree(payload);
+                var expiry = message.path("expiresAt").asText();
+                if (expiry.isEmpty() || java.time.Instant.parse(expiry).isAfter(java.time.Instant.now())) {
+                    var request = http.post()
+                            .uri(resend ? "https://api.resend.com/emails" : url)
+                            .header("Authorization", "Bearer " + (resend ? resendKey : token))
+                            .header("Idempotency-Key", job.get("delivery_id").toString())
+                            .header("X-Correlation-ID", job.get("correlation_id").toString())
+                            .contentType(org.springframework.http.MediaType.APPLICATION_JSON);
+                    Object requestBody = resend ? resendMessage(message) : payload;
+                    if (!resend && !message.path("receiptPdf").asText().isBlank()) {
+                        var fixture = new java.util.HashMap<String, Object>(resendMessage(message));
+                        for (String field : List.of("purpose", "email", "token", "link")) {
+                            fixture.put(field, message.path(field).asText());
+                        }
+                        requestBody = fixture;
+                    }
+                    request.body(requestBody).retrieve().toBodilessEntity();
+                }
                 db.update(
                         "UPDATE iam.secure_deliveries SET"
                                 + " submitted_at=now(),protected_payload='',lease_until=NULL WHERE"
@@ -149,5 +172,31 @@ public class SecureDeliveryQueue implements PasswordResetNotifier {
                         claim);
             }
         }
+    }
+
+    private Map<String, ?> resendMessage(tools.jackson.databind.JsonNode message) {
+        String purpose = message.path("purpose").asText();
+        String receipt = message.path("receiptPdf").asText();
+        if ("ACTIVATION".equals(purpose) && !receipt.isBlank()) {
+            return Map.of(
+                    "from", from,
+                    "to", List.of(message.path("email").asText()),
+                    "subject", "Pago confirmado y activación de tu cuenta SmartGN",
+                    "text", "Tu pago de SmartGN se realizó correctamente. Adjuntamos tu comprobante.\n\n"
+                            + "1. Abre " + message.path("link").asText() + "\n"
+                            + "2. Crea y confirma tu contraseña.\n"
+                            + "3. Inicia sesión y revisa tu solicitud de instalación.",
+                    "attachments", List.of(Map.of("filename", "boleta-smartgn.pdf", "content", receipt)));
+        }
+        String text = switch (purpose) {
+            case "RECOVERY_CODE" -> "Tu código de recuperación de SmartGN es " + message.path("code").asText()
+                    + ". Vence en 10 minutos.";
+            case "ACTIVATION" -> "Activa tu cuenta de SmartGN: " + message.path("link").asText();
+            case "RECOVERY" -> "Restablece tu contraseña de SmartGN: " + message.path("link").asText();
+            default -> throw new IllegalArgumentException("Unsupported IAM email purpose");
+        };
+        return Map.of("from", from, "to", List.of(message.path("email").asText()),
+                "subject", "ACTIVATION".equals(purpose) ? "Activa tu cuenta de SmartGN" : "Recuperación de contraseña de SmartGN",
+                "text", text);
     }
 }

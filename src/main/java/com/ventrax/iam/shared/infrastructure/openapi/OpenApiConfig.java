@@ -170,6 +170,11 @@ public class OpenApiConfig {
                                                                     "400", new ApiResponse().description(
                                                                             "Activation token or password is missing or invalid."));
                                                         }
+                                                        if (path.equals("/api/v1/subusers/{subuserId}/resend-invitation")) {
+                                                            operation.getResponses().putIfAbsent(
+                                                                    "409", new ApiResponse().description(
+                                                                            "The delegated account is not pending activation."));
+                                                        }
                                                         if (!doc.security().isEmpty())
                                                             operation
                                                                     .getResponses()

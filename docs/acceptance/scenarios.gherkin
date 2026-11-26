@@ -1,0 +1,43 @@
+# Source: Ventrax AV4 report. Acceptance specification; execution is verified separately.
+Feature: IAM account activation and delegated access
+
+  Scenario: Activate password after verified initial payment
+    Given Billing has confirmed an initial purchase and IAM has a pending account
+    When the user provides a valid unused activation token and a valid password
+    Then IAM stores an adaptive password hash and activates the account
+
+  Scenario: Reject activation without a confirmed payment
+    Given the initial purchase has not been confirmed by Billing
+    When account activation is requested
+    Then IAM does not activate the account
+
+  Scenario: Sign in with email and password
+    Given the user account is active and has a password
+    When the user submits valid credentials
+    Then IAM issues a session JWT without sending a recurring sign-in email
+
+  Scenario: Reject invalid credentials
+    Given an active account exists
+    When an incorrect password is submitted
+    Then IAM rejects authentication without disclosing account details
+
+  Scenario: Reset the password with a one-time token
+    Given the user has a valid unused recovery token
+    When a new valid password is submitted
+    Then IAM updates the password hash and invalidates the token
+
+  Scenario: Deny a delegated action without the required permission
+    Given the subuser has VIEW_CONSUMPTION on meter A and VIEW_ALERTS on meter B
+    When the subuser requests VIEW_CONSUMPTION on meter B
+    Then the requested backend operation is denied after checking the current meter-specific grants without exposing meter B consumption
+
+  Scenario: Revoke a permission independently on each meter
+    Given the subuser has VIEW_CONSUMPTION on meter A and VIEW_ALERTS on meter B
+    When the primary user revokes VIEW_CONSUMPTION on meter A
+    Then the subuser cannot view consumption on meter A
+    And the subuser can still view alerts on meter B
+
+  Scenario: Prevent subusers from accessing financial functions
+    Given an authenticated subuser has delegated access to one meter
+    When the subuser requests payment, subscription, or subuser administration
+    Then the backend service denies the protected operation

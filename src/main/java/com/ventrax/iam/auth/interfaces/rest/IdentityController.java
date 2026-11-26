@@ -49,7 +49,8 @@ public class IdentityController {
             @NotBlank @Email @Size(max = 254) String email,
             @NotBlank @Size(max = 100) String firstName,
             @NotBlank @Size(max = 100) String lastName,
-            boolean confirmed) {}
+            boolean confirmed,
+            @Size(max = 5000000) String receiptPdf) {}
 
     public record Session(@NotBlank String token) {}
 
@@ -148,7 +149,7 @@ public class IdentityController {
                         p.email(),
                         p.firstName(),
                         p.lastName(),
-                        p.confirmed()));
+                        p.confirmed(), p.receiptPdf()));
     }
 
     @io.swagger.v3.oas.annotations.security.SecurityRequirement(name = "serviceAuth")
