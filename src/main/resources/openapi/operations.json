@@ -221,7 +221,7 @@
       "path": "/api/v1/auth/recovery-codes",
       "tag": "Authentication",
       "summary": "Request a password recovery code",
-      "description": "Queues an email with a six-digit code for a registered active account. Returns only a challenge identifier.",
+      "description": "Returns a challenge identifier for every accepted request. Sends a six-digit code only to eligible accounts.",
       "success": 202,
       "security": ""
     },

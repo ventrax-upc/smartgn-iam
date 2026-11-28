@@ -65,8 +65,8 @@ smartgn:
     token: ${NOTIFICATION_SERVICE_TOKEN:}
   installation:
     url: ${INSTALLATION_BASE_URL:http://installation:8081}
-  billing:
-    base-url: ${BILLING_BASE_URL:${BILLING_FIXTURE_URL:}}
-    service-token: ${BILLING_SERVICE_TOKEN:${BILLING_FIXTURE_TOKEN:}}
-    fixture-url: ${BILLING_FIXTURE_URL:}
-    fixture-token: ${BILLING_FIXTURE_TOKEN:}
+  payments:
+    base-url: ${PAYMENTS_BASE_URL:${PAYMENTS_FIXTURE_URL:}}
+    service-token: ${PAYMENTS_SERVICE_TOKEN:${PAYMENTS_FIXTURE_TOKEN:}}
+    fixture-url: ${PAYMENTS_FIXTURE_URL:}
+    fixture-token: ${PAYMENTS_FIXTURE_TOKEN:}

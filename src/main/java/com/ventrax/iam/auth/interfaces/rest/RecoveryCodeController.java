@@ -27,10 +27,8 @@ public class RecoveryCodeController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.ACCEPTED)
+    @ApiResponse(responseCode = "202", description = "Recovery request accepted; eligible accounts receive a code")
     @ApiResponse(responseCode = "400", description = "Email is invalid")
-    @ApiResponse(responseCode = "404", description = "Email is not registered")
-    @ApiResponse(responseCode = "409", description = "Account is inactive")
-    @ApiResponse(responseCode = "429", description = "Recovery request limit exceeded")
     @ApiResponse(responseCode = "503", description = "Email delivery is unavailable")
     public Challenge send(@Valid @RequestBody Send request) {
         return new Challenge(codes.send(request.email()));

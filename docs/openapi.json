@@ -783,36 +783,6 @@
               }
             }
           },
-          "404": {
-            "description": "Email is not registered",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/Challenge"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Account is inactive",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/Challenge"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Recovery request limit exceeded",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/Challenge"
-                }
-              }
-            }
-          },
           "503": {
             "description": "Email delivery is unavailable",
             "content": {

@@ -20,10 +20,10 @@ The six functions are VIEW_CONSUMPTION, VIEW_HISTORY, VIEW_ALERTS, USE_REPORTS, 
 
 All `/internal/v1/**` routes require the service credential; user JWTs do not authorize them. They must remain outside public gateway routing.
 
-- POST `/accounts/purchase-confirmations`: `{eventId,purchaseOrderId,email,firstName,lastName,confirmed}`. Only a trusted verified initial-purchase result with `confirmed=true` provisions a pending principal. Same receipt is idempotent; conflicting identities are rejected. Browser payment returns are not proof. Actual Niubiz verification remains Billing's responsibility.
+- POST `/accounts/purchase-confirmations`: `{eventId,purchaseOrderId,email,firstName,lastName,confirmed}`. Only a trusted verified initial-purchase result with `confirmed=true` provisions a pending principal. Same receipt is idempotent; conflicting identities are rejected. Browser payment returns are not proof. Actual Niubiz verification remains Payments's responsibility.
 - POST `/sessions/introspect`: `{token}`. Validates current cryptography, account state, role and session version; returns account context without credentials or plan authority.
 - GET `/accounts/{id}` and `/accounts/{id}/grants`: current service-only identity context and active delegated meter/function snapshot.
-- POST `/authorizations/check`: `{accountId,meterId,function,requiresPro}` returns `{allowed}`. The trusted consuming service sets whether its operation requires Pro; unknown functions are denied. IAM rechecks principal ownership with Installation. Entitlements are queried from Billing through its protected account entitlement contract; the local fixture remains an explicit development double.
+- POST `/authorizations/check`: `{accountId,meterId,function,requiresPro}` returns `{allowed}`. The trusted consuming service sets whether its operation requires Pro; unknown functions are denied. IAM rechecks principal ownership with Installation. Entitlements are queried from Payments through its protected account entitlement contract; the local fixture remains an explicit development double.
 
 ## Messages and sensitive delivery
 
@@ -33,6 +33,6 @@ Activation/recovery delivery is a separate AES-GCM-protected queue. Only token v
 
 The local adapter's `/local-contracts/notifications`, entitlement and event-sink routes belong to the development fixture. They are not published as definitive interfaces of future services. X-Correlation-ID is propagated across current HTTP calls and durable messages.
 
-## Billing service integration
+## Payments service integration
 
-Configure `smartgn.billing.base-url` and `smartgn.billing.service-token` to query `GET /internal/v1/accounts/{accountId}/entitlements` on Billing. Legacy fixture configuration keys remain fallback configuration names; the queried endpoint is now owned by Billing.
+Configure `smartgn.payments.base-url` and `smartgn.payments.service-token` to query `GET /internal/v1/accounts/{accountId}/entitlements` on Payments. Legacy fixture configuration keys remain fallback configuration names; the queried endpoint is now owned by Payments.

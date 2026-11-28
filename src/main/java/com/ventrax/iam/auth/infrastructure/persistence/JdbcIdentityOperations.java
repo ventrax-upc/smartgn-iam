@@ -24,8 +24,8 @@ public class JdbcIdentityOperations implements IdentityOperations {
     private final PasswordEncoder passwords;
     private final SecureDeliveryQueue delivery;
     private final Sha256ResetTokenCodec tokens;
-    private final RestClient installation, billing;
-    private final String serviceToken, billingToken;
+    private final RestClient installation, payments;
+    private final String serviceToken, paymentsToken;
     private final String activationLink;
 
     public JdbcIdentityOperations(
@@ -36,9 +36,9 @@ public class JdbcIdentityOperations implements IdentityOperations {
             Sha256ResetTokenCodec tokens,
             @Value("${smartgn.installation.url:http://installation:8081}") String installationUrl,
             @Value("${smartgn.internal.token}") String serviceToken,
-            @Value("${smartgn.billing.base-url:${smartgn.billing.fixture-url:}}") String billingUrl,
-            @Value("${smartgn.billing.service-token:${smartgn.billing.fixture-token:}}")
-                    String billingToken,
+            @Value("${smartgn.payments.base-url:${smartgn.payments.fixture-url:}}") String paymentsUrl,
+            @Value("${smartgn.payments.service-token:${smartgn.payments.fixture-token:}}")
+                    String paymentsToken,
             @Value("${smartgn.activation.link:http://localhost:4200/activate-password}")
                     String activationLink) {
         this.db = db;
@@ -47,7 +47,7 @@ public class JdbcIdentityOperations implements IdentityOperations {
         this.delivery = delivery;
         this.tokens = tokens;
         this.serviceToken = serviceToken;
-        this.billingToken = billingToken;
+        this.paymentsToken = paymentsToken;
         this.activationLink = activationLink;
         var f =
                 new org.springframework.http.client.JdkClientHttpRequestFactory(
@@ -62,9 +62,9 @@ public class JdbcIdentityOperations implements IdentityOperations {
                         .requestInterceptor(
                                 new com.ventrax.iam.shared.infrastructure.web.TraceHttpRequests())
                         .build();
-        this.billing =
+        this.payments =
                 RestClient.builder()
-                        .baseUrl(billingUrl.isBlank() ? "http://127.0.0.1:1" : billingUrl)
+                        .baseUrl(paymentsUrl.isBlank() ? "http://127.0.0.1:1" : paymentsUrl)
                         .requestFactory(f)
                         .requestInterceptor(
                                 new com.ventrax.iam.shared.infrastructure.web.TraceHttpRequests())
@@ -503,14 +503,14 @@ public class JdbcIdentityOperations implements IdentityOperations {
         if (allowed && requiresPro) {
             try {
                 var body =
-                        billing.get()
+                        payments.get()
                                 .uri("/internal/v1/accounts/{id}/entitlements", principal)
-                                .header("Authorization", "Bearer " + billingToken)
+                                .header("Authorization", "Bearer " + paymentsToken)
                                 .retrieve()
                                 .body(Map.class);
                 allowed = body != null && Boolean.TRUE.equals(body.get("proActive"));
             } catch (Exception failure) {
-                throw error(HttpStatus.SERVICE_UNAVAILABLE, "Billing entitlement is not confirmed");
+                throw error(HttpStatus.SERVICE_UNAVAILABLE, "Payments entitlement is not confirmed");
             }
         }
         if (!allowed) audit(account, "METER_ACCESS_DENIED", meter);

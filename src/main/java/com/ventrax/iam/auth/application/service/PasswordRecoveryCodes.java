@@ -49,16 +49,15 @@ public class PasswordRecoveryCodes {
     @Transactional
     public UUID send(String address) {
         String email = address.trim().toLowerCase(Locale.ROOT);
-        var account = accounts.findByEmail(email)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Email is not registered"));
-        if (!"ACTIVE".equals(account.getStatus())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Account is not active");
-        }
         if (!delivery.isConfigured()) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Email delivery is not configured");
         }
-        db.queryForList("SELECT account_id FROM iam.user_accounts WHERE account_id=? FOR UPDATE", account.getId());
         UUID challenge = UUID.randomUUID();
+        var account = accounts.findByEmail(email).orElse(null);
+        if (account == null || !"ACTIVE".equals(account.getStatus())) {
+            return challenge;
+        }
+        db.queryForList("SELECT account_id FROM iam.user_accounts WHERE account_id=? FOR UPDATE", account.getId());
         String code = String.format(Locale.ROOT, "%06d", random.nextInt(1_000_000));
         int saved = db.update("""
                 INSERT INTO iam.password_recovery_codes(account_id,challenge_id,code_hash,expires_at)
@@ -67,7 +66,9 @@ public class PasswordRecoveryCodes {
                    code_hash=excluded.code_hash, expires_at=excluded.expires_at, attempts=0, verified_at=NULL
                 WHERE iam.password_recovery_codes.expires_at <= now()+interval '9 minutes'
                 """, account.getId(), challenge, hash(challenge, code));
-        if (saved == 0) throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Wait before requesting a new code");
+        if (saved == 0) {
+            return challenge;
+        }
         tokens.invalidatePending(account.getId(), clock.instant());
         delivery.queue(Map.of("purpose", "RECOVERY_CODE", "email", email, "code", code,
                 "challengeId", challenge, "expiresAt", clock.instant().plus(10, ChronoUnit.MINUTES).toString()));

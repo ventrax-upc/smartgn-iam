@@ -1,13 +1,12 @@
-# Source: Ventrax AV4 report. Acceptance specification; execution is verified separately.
 Feature: IAM account activation and delegated access
 
   Scenario: Activate password after verified initial payment
-    Given Billing has confirmed an initial purchase and IAM has a pending account
+    Given Payments has confirmed an initial purchase and IAM has a pending account
     When the user provides a valid unused activation token and a valid password
     Then IAM stores an adaptive password hash and activates the account
 
   Scenario: Reject activation without a confirmed payment
-    Given the initial purchase has not been confirmed by Billing
+    Given the initial purchase has not been confirmed by Payments
     When account activation is requested
     Then IAM does not activate the account
 
@@ -21,10 +20,17 @@ Feature: IAM account activation and delegated access
     When an incorrect password is submitted
     Then IAM rejects authentication without disclosing account details
 
-  Scenario: Reset the password with a one-time token
-    Given the user has a valid unused recovery token
-    When a new valid password is submitted
-    Then IAM updates the password hash and invalidates the token
+  Scenario: Reset the password with a one-time code
+    Given the user's account is active
+    When the user requests and verifies a valid unused recovery code
+    And submits a new valid password using the issued recovery token
+    Then IAM updates the password hash and invalidates the token and prior sessions
+
+  Scenario: Keep account eligibility private during recovery
+    Given a recovery request has a syntactically valid email
+    When the account is unknown, inactive or in the resend cooldown
+    Then IAM accepts the request with an opaque challenge
+    And IAM does not queue a recovery email
 
   Scenario: Deny a delegated action without the required permission
     Given the subuser has VIEW_CONSUMPTION on meter A and VIEW_ALERTS on meter B
